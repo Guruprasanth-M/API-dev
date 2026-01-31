@@ -1,29 +1,41 @@
-
 <?php
+declare(strict_types=1);
 
 class Database
 {
-    public static $conn = null;
-    public static function getConnection()
+    private static ?mysqli $conn = null;
+
+    public static function getConnection(): mysqli
     {
-        if (Database::$conn == null) {
-            $servername = $_ENV['DB_SERVER'] ?: '127.0.0.1';
-            $username = $_ENV['DB_USERNAME'] ?: 'root';
-            $password = $_ENV['DB_PASSWORD'] ?: '';
-            $dbname = $_ENV['DB_NAME'] ?: '';
-            try {
-                $connection = new mysqli($servername, $username, $password, $dbname);
-            } catch (mysqli_sql_exception $e) {
-                throw new Exception('Database connection error: ' . $e->getMessage());
-            }
-            if ($connection->connect_error) {
-                throw new Exception("Connection failed: " . $connection->connect_error);
-            } else {
-                Database::$conn = $connection;
-                return Database::$conn;
-            }
-        } else {
-                return Database::$conn;
+        if (self::$conn instanceof mysqli) {
+            return self::$conn;
         }
+
+        $host = $_ENV['DB_SERVER'] ?? '127.0.0.1';
+        $user = $_ENV['DB_USERNAME'] ?? 'root';
+        $pass = $_ENV['DB_PASSWORD'] ?? '';
+        $name = $_ENV['DB_NAME'] ?? '';
+
+        // Enable mysqli exceptions (IMPORTANT)
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+        try {
+            $conn = new mysqli($host, $user, $pass, $name);
+            $conn->set_charset('utf8mb4');
+        } catch (mysqli_sql_exception $e) {
+            throw new RuntimeException(
+                'Database connection failed',
+                500,
+                $e
+            );
+        }
+
+        self::$conn = $conn;
+        echo "Database connected successfully.\n";
+        return self::$conn;
     }
+
+    // Prevent instantiation
+    private function __construct() {}
+    private function __clone() {}
 }
