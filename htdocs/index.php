@@ -11,12 +11,32 @@ class API extends REST
     {
         parent::__construct();
         $this->dbConnect();
+        
+        // ✅ CHECK IF DATABASE IS CONNECTED BEFORE PROCESSING
+        if (!$this->checkDatabaseConnection()) {
+            return;  // Error already sent, stop processing
+        }
+        
         Migration::run($this->db);
     }
 
     private function dbConnect(): void
     {
         $this->db = Database::getConnection();
+    }
+
+    private function checkDatabaseConnection(): bool
+    {
+        if ($this->db === null || !$this->db->ping()) {
+            $error = [
+                'status' => 'DATABASE_ERROR',
+                'msg' => 'Database connection failed. Service temporarily unavailable.',
+                'code' => 'DB_CONNECTION_FAILED'
+            ];
+            $this->response($this->json($error), 503);
+            return false;
+        }
+        return true;
     }
 
     public function processApi(): void
