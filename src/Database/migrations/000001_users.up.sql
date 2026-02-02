@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS `users` (
   `phone` varchar(10) NOT NULL,
   `email` varchar(64) NOT NULL UNIQUE,
   `blocked` int NOT NULL DEFAULT '0',
-  `user_name` VARCHAR(100) NOT NULL UNIQUE;
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
