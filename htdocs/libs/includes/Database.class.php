@@ -31,7 +31,6 @@ class Database
         }
 
         self::$conn = $conn;
-        echo "Database connected successfully.\n";
         return self::$conn;
     }
 

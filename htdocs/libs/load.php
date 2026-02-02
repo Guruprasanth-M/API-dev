@@ -1,5 +1,6 @@
 <?php
 include_once 'includes/Database.class.php';
+include_once 'includes/Response.class.php';
 
 
 require __DIR__ . '/vendor/autoload.php';
