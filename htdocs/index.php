@@ -51,6 +51,29 @@ class API extends REST
         $this->response($this->json($result), $status);
     }
 
+    private function userexists(): void
+    {
+        if ($this->get_request_method() != "POST") {
+            $error = ['status' => 'FAILED', 'msg' => 'Only POST method allowed'];
+            $this->response($this->json($error), 406);
+            return;
+        }
+
+        $searchData = $this->_request['data'] ?? '';
+        
+        if (empty($searchData)) {
+            $error = ['status' => 'FAILED', 'msg' => 'Search parameter "data" is required'];
+            $this->response($this->json($error), 400);
+            return;
+        }
+
+        $user = new User($this->db);
+        $result = $user->userExists($searchData);
+        
+        $status = ($result['status'] === 'SUCCESS') ? 200 : 404;
+        $this->response($this->json($result), $status);
+    }
+
     private function json(array $data): string
     {
         return json_encode($data, JSON_PRETTY_PRINT);
