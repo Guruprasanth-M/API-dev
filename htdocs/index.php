@@ -27,7 +27,7 @@ class API extends REST
     }
 
     public function processApi(){
-        $func = strtolower(trim(str_replace("/","",$_REQUEST['request'] ?? $_REQUEST['rquest'] ?? '')));
+        $func = strtolower(trim(str_replace("/","",$_REQUEST['request'] ?? '')));
         if((int)method_exists($this,$func) > 0)
             $this->$func();
         else
@@ -46,6 +46,17 @@ class API extends REST
         $this->response($data,200);
     }
 
+    private function verify(){
+        $Username = $this->_request['Username'];
+        $Password = $this->_request['Password'];
+        
+        $user = new User($this->db);
+        $result = $user->verify($Username, $Password);
+        
+        $data = $this->json($result);
+        $status = ($result['status'] == 'SUCCESS') ? 200 : 401;
+        $this->response($data, $status);
+    }
 
     private function json($data){
         if(is_array($data)){
