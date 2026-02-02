@@ -27,7 +27,7 @@ class API extends REST
     }
 
     public function processApi(){
-        $func = strtolower(trim(str_replace("/","",$_REQUEST['request'])));
+        $func = strtolower(trim(str_replace("/","",$_REQUEST['request'] ?? $_REQUEST['rquest'] ?? '')));
         if((int)method_exists($this,$func) > 0)
             $this->$func();
         else
