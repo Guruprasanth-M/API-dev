@@ -1,70 +1,62 @@
 <?php
 error_reporting(E_ALL ^ E_DEPRECATED);
-include 'libs/load.php';
+
+require_once __DIR__ . '/../src/load.php';
 
 class API extends REST
 {
-    public $data = "";
+    private ?mysqli $db = null;
 
-    private $db = NULL;
-
-    public function __construct(){
+    public function __construct()
+    {
         parent::__construct();
         $this->dbConnect();
+        Migration::run($this->db);
     }
 
-    private function dbConnect(){
-        if ($this->db != NULL) {
-            return $this->db;
-        } else {
-            $this->db = Database::getConnection();
-            if (!$this->db) {
-                die("Connection failed");
-            } else {
-                return $this->db;
-            }
-        }
+    private function dbConnect(): void
+    {
+        $this->db = Database::getConnection();
     }
 
-    public function processApi(){
-        $func = strtolower(trim(str_replace("/","",$_REQUEST['request'] ?? '')));
-        if((int)method_exists($this,$func) > 0)
+    public function processApi(): void
+    {
+        $func = strtolower(trim(str_replace("/", "", $_REQUEST['request'] ?? '')));
+        if (method_exists($this, $func)) {
             $this->$func();
-        else
-            $this->response('',400);
-    }
-
-
-    private function about(){
-        if($this->get_request_method() != "POST"){
-            $error = array('status' => 'WRONG_CALL', "msg" => "The type of call cannot be accepted by our servers.");
-            $error = $this->json($error);
-            $this->response($error,406);
+        } else {
+            $this->response('', 400);
         }
-        $data = array('version' => '0.1', 'desc' => 'This API is created by GURUPRASANTH. For learning purpose.');
-        $data = $this->json($data);
-        $this->response($data,200);
     }
 
-    private function verify(){
-        $Username = $this->_request['Username'];
-        $Password = $this->_request['Password'];
+    private function about(): void
+    {
+        if ($this->get_request_method() != "POST") {
+            $error = ['status' => 'WRONG_CALL', 'msg' => 'The type of call cannot be accepted by our servers.'];
+            $this->response($this->json($error), 406);
+        }
+        $data = ['version' => '0.1', 'desc' => 'This API is created by GURUPRASANTH. For learning purpose.'];
+        $this->response($this->json($data), 200);
+    }
+
+    private function verify(): void
+    {
+        $username = $this->_request['Username'] ?? '';
+        $password = $this->_request['Password'] ?? '';
         
         $user = new User($this->db);
-        $result = $user->verify($Username, $Password);
+        $result = $user->verify($username, $password);
         
-        $data = $this->json($result);
-        $status = ($result['status'] == 'SUCCESS') ? 200 : 401;
-        $this->response($data, $status);
+        $status = ($result['status'] === 'SUCCESS') ? 200 : 401;
+        $this->response($this->json($result), $status);
     }
 
-    private function json($data){
-        if(is_array($data)){
-            return json_encode($data, JSON_PRETTY_PRINT);
-        }
+    private function json(array $data): string
+    {
+        return json_encode($data, JSON_PRETTY_PRINT);
     }
 }
 
-$api = new API;
+$api = new API();
 $api->processApi();
 ?>

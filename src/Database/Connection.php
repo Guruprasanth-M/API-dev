@@ -16,7 +16,6 @@ class Database
         $pass = $_ENV['DB_PASSWORD'] ?? '';
         $name = $_ENV['DB_NAME'] ?? '';
 
-        // Enable mysqli exceptions (IMPORTANT)
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
         try {
@@ -24,7 +23,7 @@ class Database
             $conn->set_charset('utf8mb4');
         } catch (mysqli_sql_exception $e) {
             throw new RuntimeException(
-                'Database connection failed',
+                'Database connection failed: ' . $e->getMessage(),
                 500,
                 $e
             );
@@ -34,7 +33,14 @@ class Database
         return self::$conn;
     }
 
-    // Prevent instantiation
+    public static function close(): void
+    {
+        if (self::$conn instanceof mysqli) {
+            self::$conn->close();
+            self::$conn = null;
+        }
+    }
+
     private function __construct() {}
     private function __clone() {}
 }

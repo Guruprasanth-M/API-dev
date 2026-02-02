@@ -115,10 +115,6 @@ class REST
         }
     }
 
-    /**
-     * Minimal, SAFE input parsing
-     * No sanitization — only normalization
-     */
     private function parseInput(mixed $data): mixed
     {
         if (is_array($data)) {
@@ -130,7 +126,6 @@ class REST
         }
 
         if (is_string($data)) {
-            // Remove null bytes, trim whitespace only
             return trim(str_replace("\0", '', $data));
         }
 
