@@ -121,6 +121,37 @@ class Auth
             }
         }
 
+        // Check if user already has active session
+        $session_check_query = "SELECT access_token, refresh_token, expires_at FROM sessions 
+                                WHERE user_id = ? AND expires_at > NOW() LIMIT 1";
+        $session_check_stmt = $this->db->prepare($session_check_query);
+        if ($session_check_stmt) {
+            $session_check_stmt->bind_param("i", $user['id']);
+            $session_check_stmt->execute();
+            $session_result = $session_check_stmt->get_result();
+            
+            if ($session_result->num_rows > 0) {
+                $existing_session = $session_result->fetch_assoc();
+                $session_check_stmt->close();
+                
+                return [
+                    'status' => 'SUCCESS',
+                    'msg' => 'Already logged in',
+                    'user' => [
+                        'id' => $user['id'],
+                        'username' => $user['username'],
+                        'email' => $user['email'],
+                        'phone' => $user['phone'],
+                        'created_at' => $user['created_at']
+                    ],
+                    'access_token' => $existing_session['access_token'],
+                    'refresh_token' => $existing_session['refresh_token'],
+                    'expires_at' => $existing_session['expires_at']
+                ];
+            }
+            $session_check_stmt->close();
+        }
+
         $session = new Session($this->db);
         $session_result = $session->create($user['id']);
 
