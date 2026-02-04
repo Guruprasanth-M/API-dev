@@ -58,17 +58,6 @@ class API extends REST
         $this->response($this->json($data), 200);
     }
 
-    private function verify(): void
-    {
-        $username = $this->_request['Username'] ?? '';
-        $password = $this->_request['Password'] ?? '';
-        
-        $user = new User($this->db);
-        $result = $user->verify($username, $password);
-        
-        $status = ($result['status'] === 'SUCCESS') ? 200 : 401;
-        $this->response($this->json($result), $status);
-    }
 
     private function userexists(): void
     {
@@ -78,16 +67,14 @@ class API extends REST
             return;
         }
 
-        $searchData = $this->_request['data'] ?? '';
-        
-        if (empty($searchData)) {
-            $error = ['status' => 'FAILED', 'msg' => 'Search parameter "data" is required'];
-            $this->response($this->json($error), 400);
-            return;
-        }
+        $username = $this->_request['username'] ?? '';
+        $email = $this->_request['email'] ?? '';
+        $phone = $this->_request['phone'] ?? '';
+        $access_token = $this->_request['access_token'] ?? '';
+        $refresh_token = $this->_request['refresh_token'] ?? '';
 
         $user = new User($this->db);
-        $result = $user->userExists($searchData);
+        $result = $user->userExists($username, $email, $phone, $access_token, $refresh_token);
         
         $status = ($result['status'] === 'SUCCESS') ? 200 : 404;
         $this->response($this->json($result), $status);
