@@ -23,8 +23,14 @@ abstract class Controller
 
     private function extractBearerToken(): void
     {
-        $headers = getallheaders();
-        $authorization = $headers['Authorization'] ?? '';
+        $authorization = '';
+        
+        if (function_exists('getallheaders')) {
+            $headers = getallheaders();
+            $authorization = $headers['Authorization'] ?? '';
+        } elseif (!empty($_SERVER['HTTP_AUTHORIZATION'])) {
+            $authorization = $_SERVER['HTTP_AUTHORIZATION'];
+        }
 
         if (preg_match('/Bearer\s+(.+)/', $authorization, $matches)) {
             $this->access_token = $matches[1];
