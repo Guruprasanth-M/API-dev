@@ -21,6 +21,7 @@ class Router
         $this->routes = [
             'about' => 'AboutController',
             'test' => 'TestController',
+            'isloggedin' => 'IsLoggedInController',
             'signup' => 'SignupController',
             'login' => 'LoginController',
             'logout' => 'LogoutController',
