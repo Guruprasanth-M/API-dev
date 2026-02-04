@@ -12,9 +12,8 @@ class API extends REST
         parent::__construct();
         $this->dbConnect();
         
-        // ✅ CHECK IF DATABASE IS CONNECTED BEFORE PROCESSING
         if (!$this->checkDatabaseConnection()) {
-            return;  // Error already sent, stop processing
+            return; 
         }
         
         Migration::run($this->db);
@@ -91,6 +90,56 @@ class API extends REST
         $result = $user->userExists($searchData);
         
         $status = ($result['status'] === 'SUCCESS') ? 200 : 404;
+        $this->response($this->json($result), $status);
+    }
+
+    private function signup(): void
+    {
+        if ($this->get_request_method() != "POST") {
+            $error = ['status' => 'FAILED', 'msg' => 'Only POST method allowed'];
+            $this->response($this->json($error), 405);
+            return;
+        }
+
+        $username = $this->_request['username'] ?? '';
+        $password = $this->_request['password'] ?? '';
+        $email = $this->_request['email'] ?? '';
+        $phone = $this->_request['phone'] ?? '';
+
+        if (empty($username) || empty($password) || empty($email) || empty($phone)) {
+            $error = ['status' => 'FAILED', 'msg' => 'All fields required: username, password, email, phone'];
+            $this->response($this->json($error), 400);
+            return;
+        }
+
+        $auth = new Auth($this->db);
+        $result = $auth->signup($username, $password, $email, $phone);
+        
+        $status = ($result['status'] === 'SUCCESS') ? 201 : 400;
+        $this->response($this->json($result), $status);
+    }
+
+    private function login(): void
+    {
+        if ($this->get_request_method() != "POST") {
+            $error = ['status' => 'FAILED', 'msg' => 'Only POST method allowed'];
+            $this->response($this->json($error), 405);
+            return;
+        }
+
+        $username = $this->_request['username'] ?? '';
+        $password = $this->_request['password'] ?? '';
+
+        if (empty($username) || empty($password)) {
+            $error = ['status' => 'FAILED', 'msg' => 'Username and password are required'];
+            $this->response($this->json($error), 400);
+            return;
+        }
+
+        $auth = new Auth($this->db);
+        $result = $auth->login($username, $password);
+        
+        $status = ($result['status'] === 'SUCCESS') ? 200 : 401;
         $this->response($this->json($result), $status);
     }
 
