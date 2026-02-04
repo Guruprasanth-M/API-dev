@@ -121,6 +121,13 @@ class Auth
             }
         }
 
+        $session = new Session($this->db);
+        $session_result = $session->create($user['id']);
+
+        if ($session_result['status'] !== 'SUCCESS') {
+            return ['status' => 'FAILED', 'error' => 'Failed to create session'];
+        }
+
         return [
             'status' => 'SUCCESS',
             'msg' => 'Login successful',
@@ -130,7 +137,10 @@ class Auth
                 'email' => $user['email'],
                 'phone' => $user['phone'],
                 'created_at' => $user['created_at']
-            ]
+            ],
+            'access_token' => $session_result['access_token'],
+            'refresh_token' => $session_result['refresh_token'],
+            'expires_at' => $session_result['expires_at']
         ];
     }
 }

@@ -12,4 +12,5 @@ require_once SRC_PATH . '/Core/REST.php';
 require_once SRC_PATH . '/Database/Connection.php';
 require_once SRC_PATH . '/Database/Migration.php';
 require_once SRC_PATH . '/Store/User.php';
+require_once SRC_PATH . '/Store/Session.php';
 require_once SRC_PATH . '/Store/Auth.php';

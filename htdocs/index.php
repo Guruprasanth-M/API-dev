@@ -107,7 +107,7 @@ class API extends REST
         $phone = $this->_request['phone'] ?? '';
 
         if (empty($username) || empty($password) || empty($email) || empty($phone)) {
-            $error = ['status' => 'FAILED', 'msg' => 'All fields required: username, password, email, phone'];
+            $error = ['status' => 'FAILED', 'msg' => 'POST parameters required: "username", "password", "email", "phone"'];
             $this->response($this->json($error), 400);
             return;
         }
@@ -131,13 +131,59 @@ class API extends REST
         $password = $this->_request['password'] ?? '';
 
         if (empty($username) || empty($password)) {
-            $error = ['status' => 'FAILED', 'msg' => 'Username and password are required'];
+            $error = ['status' => 'FAILED', 'msg' => 'POST parameters required: "username", "password"'];
             $this->response($this->json($error), 400);
             return;
         }
 
         $auth = new Auth($this->db);
         $result = $auth->login($username, $password);
+        
+        $status = ($result['status'] === 'SUCCESS') ? 200 : 401;
+        $this->response($this->json($result), $status);
+    }
+
+    private function logout(): void
+    {
+        if ($this->get_request_method() != "POST") {
+            $error = ['status' => 'FAILED', 'msg' => 'Only POST method allowed'];
+            $this->response($this->json($error), 405);
+            return;
+        }
+
+        $access_token = $this->_request['access_token'] ?? '';
+
+        if (empty($access_token)) {
+            $error = ['status' => 'FAILED', 'msg' => 'POST parameter required: "access_token"'];
+            $this->response($this->json($error), 400);
+            return;
+        }
+
+        $session = new Session($this->db);
+        $result = $session->delete($access_token);
+        
+        $status = ($result['status'] === 'SUCCESS') ? 200 : 401;
+        $this->response($this->json($result), $status);
+    }
+
+    private function refresh(): void
+    {
+        if ($this->get_request_method() != "POST") {
+            $error = ['status' => 'FAILED', 'msg' => 'Only POST method allowed'];
+            $this->response($this->json($error), 405);
+            return;
+        }
+
+        $refresh_token = $this->_request['refresh_token'] ?? '';
+
+        if (empty($refresh_token)) {
+            $error = ['status' => 'FAILED', 'msg' => 'POST parameter required: "refresh_token"'];
+            $this->response($this->json($error), 400);
+            return;
+        }
+
+        $session = new Session($this->db);
+        $result = $session->refresh($refresh_token);
         
         $status = ($result['status'] === 'SUCCESS') ? 200 : 401;
         $this->response($this->json($result), $status);
