@@ -29,6 +29,8 @@ class Router
             'userexists' => 'UserExistsController',
             'verify' => 'VerifyController',
             'resendverification' => 'ResendVerificationController',
+            'requestpasswordreset' => 'RequestPasswordResetController',
+            'resetpassword' => 'ResetPasswordController',
         ];
     }
 

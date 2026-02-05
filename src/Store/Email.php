@@ -124,4 +124,12 @@ class Email
 
         return $this->send($to, $subject, $message);
     }
+
+    public function sendPasswordResetEmail(string $to, string $username, string $token): array
+    {
+        $subject = "Password Reset Request";
+        $message = "Token: {$token}";
+
+        return $this->send($to, $subject, $message);
+    }
 }

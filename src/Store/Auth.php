@@ -95,6 +95,42 @@ class Auth
         return $this->generateAndSendVerification($user);
     }
 
+    public function requestPasswordReset(string $email): array
+    {
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $this->error('Valid email is required');
+        }
+
+        $user = $this->findUserByEmail($email);
+        if (!$user) {
+            return $this->error('Email not found');
+        }
+
+        return $this->generateAndSendPasswordReset($user);
+    }
+
+    public function resetPassword(string $token, string $newPassword): array
+    {
+        if (empty($token)) {
+            return $this->error('Reset token is required');
+        }
+
+        if (strlen($newPassword) < 6) {
+            return $this->error('Password must be at least 6 characters');
+        }
+
+        $user = $this->findUserByResetToken($token);
+        if (!$user) {
+            return $this->error('Invalid reset token');
+        }
+
+        if ($this->isTokenExpired($user['reset_token_expires_at'])) {
+            return $this->error('Reset token has expired. Please request a new one.');
+        }
+
+        return $this->updatePassword($user, $newPassword);
+    }
+
     private function validateSignupInput(string $username, string $password, string $email, string $phone): ?array
     {
         if (empty($username) || empty($password) || empty($email) || empty($phone)) {
@@ -388,5 +424,81 @@ class Auth
     private function success(string $message, array $extra = []): array
     {
         return array_merge(['status' => 'SUCCESS', 'msg' => $message], $extra);
+    }
+
+    private function findUserByResetToken(string $token): ?array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT id, username, email, password, reset_token_expires_at FROM users WHERE reset_token = ? LIMIT 1"
+        );
+
+        if (!$stmt) return null;
+
+        $stmt->bind_param("s", $token);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        $stmt->close();
+
+        return $user ?: null;
+    }
+
+    private function generateAndSendPasswordReset(array $user): array
+    {
+        $resetToken = $this->generateToken();
+        $tokenExpiresAt = $this->getExpiryTime(3600);
+
+        $stmt = $this->db->prepare(
+            "UPDATE users SET reset_token = ?, reset_token_expires_at = ? WHERE id = ?"
+        );
+
+        if (!$stmt) return $this->error('Database error');
+
+        $stmt->bind_param("ssi", $resetToken, $tokenExpiresAt, $user['id']);
+
+        if ($stmt->execute()) {
+            $stmt->close();
+            $emailSent = $this->sendPasswordResetEmail($user['email'], $user['username'], $resetToken);
+
+            return [
+                'status' => 'SUCCESS',
+                'msg' => 'Password reset token sent to your email. Use this token with the API to reset your password.',
+                'token' => $resetToken,
+                'email_sent' => $emailSent,
+                'expires_at' => $tokenExpiresAt
+            ];
+        }
+
+        return $this->error('Failed to send password reset email');
+    }
+
+    private function sendPasswordResetEmail(string $email, string $username, string $token): bool
+    {
+        $emailService = new Email();
+        $result = $emailService->sendPasswordResetEmail($email, $username, $token);
+        return $result['status'] === 'SUCCESS';
+    }
+
+    private function updatePassword(array $user, string $newPassword): array
+    {
+        $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => $this->bcryptCost]);
+
+        $stmt = $this->db->prepare(
+            "UPDATE users SET password = ?, reset_token = NULL, reset_token_expires_at = NULL WHERE id = ?"
+        );
+
+        if (!$stmt) return $this->error('Database error');
+
+        $stmt->bind_param("si", $hashedPassword, $user['id']);
+
+        if ($stmt->execute()) {
+            $stmt->close();
+            return $this->success('Password reset successfully! You can now log in with your new password.', [
+                'username' => $user['username'],
+                'email' => $user['email']
+            ]);
+        }
+
+        return $this->error('Failed to reset password');
     }
 }
