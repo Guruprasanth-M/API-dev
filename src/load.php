@@ -8,15 +8,27 @@ require BASE_PATH . '/vendor/autoload.php';
 $dotenv = Dotenv\Dotenv::createImmutable(BASE_PATH);
 $dotenv->load();
 
-require_once SRC_PATH . '/Core/REST.php';
-require_once SRC_PATH . '/Core/Controller.php';
-require_once SRC_PATH . '/Core/Router.php';
-require_once SRC_PATH . '/Database/Connection.php';
-require_once SRC_PATH . '/Database/Migration.php';
-require_once SRC_PATH . '/Store/User.php';
-require_once SRC_PATH . '/Store/Session.php';
-require_once SRC_PATH . '/Store/Auth.php';
+// Load Core files in correct order (dependencies matter!)
+$core_files = [
+    'REST.php',
+    'Controller.php',
+    'Router.php'
+];
+foreach ($core_files as $core_file) {
+    require_once SRC_PATH . '/Core/' . $core_file;
+}
 
+// Load Database files
+foreach (glob(SRC_PATH . '/Database/*.php') as $database_file) {
+    require_once $database_file;
+}
+
+// Load Store files
+foreach (glob(SRC_PATH . '/Store/*.php') as $store_file) {
+    require_once $store_file;
+}
+
+// Load all Controllers
 foreach (glob(SRC_PATH . '/Controllers/*.php') as $controller) {
     require_once $controller;
 }

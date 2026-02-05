@@ -16,7 +16,7 @@ class AboutController extends Controller
 
         return [
             'status' => 'SUCCESS',
-            'msg' => 'Welcome Admin',
+            'msg' => 'Welcome To about Page',
             'admin' => [
                 'username' => $user['username'],
                 'email' => $user['email'],
@@ -25,7 +25,7 @@ class AboutController extends Controller
             ],
             'api' => [
                 'name' => 'Guruprasanth API',
-                'version' => '0.1.0',
+                'version' => '0.1',
                 'description' => 'REST API for backend and security concepts'
             ],
             'code' => 200
