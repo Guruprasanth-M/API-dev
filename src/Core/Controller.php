@@ -82,6 +82,11 @@ abstract class Controller
             return ['status' => 'UNAUTHORIZED', 'msg' => 'Invalid or expired access token', 'code' => 401];
         }
 
+        $user = $this->getAuthenticatedUser();
+        if ($user && isset($user['verified']) && (int)$user['verified'] === 0) {
+            return ['status' => 'FAILED', 'error' => 'Please verify your email first', 'verified' => false, 'code' => 403];
+        }
+
         return null;
     }
 

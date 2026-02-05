@@ -27,12 +27,9 @@ class Router
             'logout' => 'LogoutController',
             'refresh' => 'RefreshController',
             'userexists' => 'UserExistsController',
+            'verify' => 'VerifyController',
+            'resendverification' => 'ResendVerificationController',
         ];
-    }
-
-    public function addRoute(string $endpoint, string $controller): void
-    {
-        $this->routes[$endpoint] = $controller;
     }
 
     public function dispatch(string $endpoint): array
@@ -51,10 +48,5 @@ class Router
 
         $controller = new $controllerClass($this->db, $this->request, $this->method);
         return $controller->handle();
-    }
-
-    public function getRoutes(): array
-    {
-        return array_keys($this->routes);
     }
 }

@@ -8,7 +8,7 @@ require BASE_PATH . '/vendor/autoload.php';
 $dotenv = Dotenv\Dotenv::createImmutable(BASE_PATH);
 $dotenv->load();
 
-// Load Core files in correct order (dependencies matter!)
+
 $core_files = [
     'REST.php',
     'Controller.php',
@@ -18,17 +18,17 @@ foreach ($core_files as $core_file) {
     require_once SRC_PATH . '/Core/' . $core_file;
 }
 
-// Load Database files
+
 foreach (glob(SRC_PATH . '/Database/*.php') as $database_file) {
     require_once $database_file;
 }
 
-// Load Store files
+
 foreach (glob(SRC_PATH . '/Store/*.php') as $store_file) {
     require_once $store_file;
 }
 
-// Load all Controllers
+
 foreach (glob(SRC_PATH . '/Controllers/*.php') as $controller) {
     require_once $controller;
 }

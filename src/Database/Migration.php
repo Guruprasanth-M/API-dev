@@ -86,12 +86,4 @@ class Migration
             return false;
         }
     }
-
-    public static function reset(): void
-    {
-        $migrationFlag = $_ENV['MIGRATION_FLAG'] ?? '';
-        if (file_exists($migrationFlag)) {
-            unlink($migrationFlag);
-        }
-    }
 }

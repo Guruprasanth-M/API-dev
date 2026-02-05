@@ -59,4 +59,3 @@ class API extends REST
 
 $api = new API();
 $api->processApi();
-?>

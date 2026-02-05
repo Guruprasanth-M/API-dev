@@ -16,11 +16,6 @@ class REST
         $this->inputs();
     }
 
-    public function get_referer(): ?string
-    {
-        return $_SERVER['HTTP_REFERER'] ?? null;
-    }
-
     public function get_request_method(): string
     {
         return $this->_method;

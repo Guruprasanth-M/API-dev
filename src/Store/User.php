@@ -12,7 +12,7 @@ class User
 
     private function getUserById(int $user_id): ?array
     {
-        $stmt = $this->db->prepare("SELECT id, username, email, phone, blocked, created_at FROM users WHERE id = ? LIMIT 1");
+        $stmt = $this->db->prepare("SELECT id, username, email, phone, blocked, verified, created_at FROM users WHERE id = ? LIMIT 1");
         if (!$stmt) return null;
         
         $stmt->bind_param("i", $user_id);
@@ -38,7 +38,7 @@ class User
 
     private function getUserByUsername(string $username): ?array
     {
-        $stmt = $this->db->prepare("SELECT id, username, email, phone, blocked, created_at FROM users WHERE username = ? LIMIT 1");
+        $stmt = $this->db->prepare("SELECT id, username, email, phone, blocked, verified, created_at FROM users WHERE username = ? LIMIT 1");
         if (!$stmt) return null;
         
         $stmt->bind_param("s", $username);
@@ -51,7 +51,7 @@ class User
 
     private function getUserByEmail(string $email): ?array
     {
-        $stmt = $this->db->prepare("SELECT id, username, email, phone, blocked, created_at FROM users WHERE email = ? LIMIT 1");
+        $stmt = $this->db->prepare("SELECT id, username, email, phone, blocked, verified, created_at FROM users WHERE email = ? LIMIT 1");
         if (!$stmt) return null;
         
         $stmt->bind_param("s", $email);
@@ -64,7 +64,7 @@ class User
 
     private function getUserByPhone(string $phone): array
     {
-        $stmt = $this->db->prepare("SELECT id, username, email, phone, blocked, created_at FROM users WHERE phone = ?");
+        $stmt = $this->db->prepare("SELECT id, username, email, phone, blocked, verified, created_at FROM users WHERE phone = ?");
         if (!$stmt) return [];
         
         $stmt->bind_param("s", $phone);
@@ -93,14 +93,11 @@ class User
     {
         $user_data = null;
 
-        // Check by tokens first
         if ($access_token) {
             $user_data = $this->getUserByToken('access_token', $access_token);
         } elseif ($refresh_token) {
             $user_data = $this->getUserByToken('refresh_token', $refresh_token);
-        }
-        // Check by credentials
-        elseif ($username) {
+        } elseif ($username) {
             $user_data = $this->getUserByUsername($username);
         } elseif ($email) {
             $user_data = $this->getUserByEmail($email);
@@ -122,7 +119,6 @@ class User
 
         $response = ['status' => 'SUCCESS', 'user' => $user_data];
         
-        // Add tokens if available
         $tokens = $this->getTokensByUserId($user_data['id']);
         if ($tokens) {
             $response = array_merge($response, $tokens);

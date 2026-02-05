@@ -15,12 +15,23 @@ class Database
         $user = $_ENV['DB_USERNAME'] ?? 'root';
         $pass = $_ENV['DB_PASSWORD'] ?? '';
         $name = $_ENV['DB_NAME'] ?? '';
+        $timeout = $_ENV['DB_CONNECT_TIMEOUT'] ?? 5;
 
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
         try {
-            $conn = new mysqli($host, $user, $pass, $name);
+            $conn = new mysqli('p:' . $host, $user, $pass, $name);
+            $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, $timeout);
+            
+            if (defined('MYSQLI_OPT_READ_TIMEOUT')) {
+                $conn->options(MYSQLI_OPT_READ_TIMEOUT, 10);
+            }
+            if (defined('MYSQLI_OPT_WRITE_TIMEOUT')) {
+                $conn->options(MYSQLI_OPT_WRITE_TIMEOUT, 10);
+            }
+            
             $conn->set_charset('utf8mb4');
+            $conn->autocommit(true);
         } catch (mysqli_sql_exception $e) {
             throw new RuntimeException(
                 'Database connection failed: ' . $e->getMessage(),
