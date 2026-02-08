@@ -23,9 +23,9 @@ class Router
 
     private function callController(string $endpoint): array
     {
-        $controllerClass = ucfirst($endpoint) . 'Controller';
+        $controllerClass = $this->resolveController($endpoint);
         
-        if (!class_exists($controllerClass)) {
+        if ($controllerClass === null) {
             return ['status' => 'FAILED', 'msg' => 'Controller not found', 'code' => 404];
         }
 
@@ -35,6 +35,19 @@ class Router
         }, $this, self::class);
 
         return $handler();
+    }
+
+    private function resolveController(string $endpoint): ?string
+    {
+        $controllersDir = SRC_PATH . '/Controllers';
+        foreach (glob($controllersDir . '/*Controller.php') as $file) {
+            $className = basename($file, '.php');
+            $name = strtolower(str_replace('Controller', '', $className));
+            if ($name === $endpoint) {
+                return $className;
+            }
+        }
+        return null;
     }
 
     public function __call(string $method, array $arguments): array

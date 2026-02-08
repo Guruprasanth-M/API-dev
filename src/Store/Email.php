@@ -18,6 +18,12 @@ class Email
 
     public function send(string $to, string $subject, string $message): array
     {
+        // Development mode: skip actual email sending and log instead
+        if (($_ENV['DEVELOPMENT_MODE'] ?? 'false') === 'true') {
+            error_log("[DEV MODE] Email would be sent - To: $to, Subject: $subject");
+            return ['status' => 'SUCCESS', 'msg' => 'Email mocked (development mode)'];
+        }
+
         if (empty($this->from) || empty($this->password)) {
             return ['status' => 'FAILED', 'error' => 'Email not configured'];
         }
