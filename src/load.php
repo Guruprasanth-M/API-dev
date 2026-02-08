@@ -23,6 +23,10 @@ foreach (glob(SRC_PATH . '/Database/*.php') as $database_file) {
     require_once $database_file;
 }
 
+// Load Services (must be before Store for dependencies)
+foreach (glob(SRC_PATH . '/Services/*.php') as $service_file) {
+    require_once $service_file;
+}
 
 foreach (glob(SRC_PATH . '/Store/*.php') as $store_file) {
     require_once $store_file;

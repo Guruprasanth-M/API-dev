@@ -4,331 +4,231 @@ declare(strict_types=1);
 class Auth
 {
     private mysqli $db;
-    private int $bcryptCost;
+    private UserRepository $userRepo;
+    private PasswordService $passwordService;
+    private TokenService $tokenService;
+    private ValidationService $validator;
     private int $verificationExpiry;
 
     public function __construct(mysqli $db)
     {
         $this->db = $db;
-        $this->bcryptCost = (int)($_ENV['BCRYPT_COST'] ?? 10);
+        $this->userRepo = new UserRepository($db);
+        $this->passwordService = new PasswordService();
+        $this->tokenService = new TokenService();
+        $this->validator = new ValidationService();
         $this->verificationExpiry = (int)($_ENV['VERIFICATION_TOKEN_EXPIRE'] ?? 86400);
     }
 
     public function signup(string $username, string $password, string $email, string $phone): array
     {
-        if ($error = $this->validateSignupInput($username, $password, $email, $phone)) {
-            return $error;
+        // Validate input
+        if ($error = $this->validator->validateSignup($username, $password, $email, $phone)) {
+            return ResponseBuilder::error($error);
         }
 
-        if ($error = $this->checkUserExists($username, $email)) {
-            return $error;
+        // Check if user exists
+        if ($error = $this->userRepo->exists($username, $email)) {
+            return ResponseBuilder::error($error);
         }
 
-        return $this->createUser($username, $password, $email, $phone);
+        // Create user
+        $hashedPassword = $this->passwordService->hash($password);
+        $verificationToken = $this->tokenService->generate();
+        $tokenExpiresAt = $this->tokenService->getExpiry($this->verificationExpiry);
+
+        $userId = $this->userRepo->create(
+            $username,
+            $hashedPassword,
+            $email,
+            $phone,
+            $verificationToken,
+            $tokenExpiresAt
+        );
+
+        if (!$userId) {
+            return ResponseBuilder::error('Failed to create user');
+        }
+
+        // Send verification email
+        $emailSent = $this->sendVerificationEmail($email, $username, $verificationToken);
+
+        return ResponseBuilder::signupResponse($userId, $username, $emailSent, $tokenExpiresAt);
     }
 
     public function login(string $username, string $password): array
     {
-        if (empty($username) || empty($password)) {
-            return $this->error('Username and password are required');
+        // Validate input
+        if ($error = $this->validator->validateLogin($username, $password)) {
+            return ResponseBuilder::error($error);
         }
 
-        $user = $this->findUserByUsernameOrEmail($username);
+        // Find user
+        $user = $this->userRepo->findByUsernameOrEmail($username);
         if (!$user) {
-            return $this->error('Invalid username or email');
+            return ResponseBuilder::error('Invalid username or email');
         }
 
-        if (!password_verify($password, $user['password'])) {
-            return $this->error('Invalid password');
+        // Verify password
+        if (!$this->passwordService->verify($password, $user['password'])) {
+            return ResponseBuilder::error('Invalid password');
         }
 
-        if (!$this->isVerified($user)) {
-            return [
-                'status' => 'FAILED',
-                'error' => 'Please verify your email before logging in. Check your inbox for the verification link.',
-                'verified' => false
-            ];
+        // Check verification status
+        if (!$this->userRepo->isVerified($user)) {
+            return ResponseBuilder::verificationNeeded();
         }
 
-        $this->rehashPasswordIfNeeded($user['id'], $password, $user['password']);
+        // Rehash password if needed
+        $this->passwordService->rehashIfNeeded(
+            $this->userRepo,
+            $user['id'],
+            $password,
+            $user['password']
+        );
 
+        // Get or create session
         return $this->getOrCreateSession($user);
     }
 
     public function verifyEmail(string $token): array
     {
-        if (empty($token)) {
-            return $this->error('Verification token is required');
+        if ($error = $this->validator->validateToken($token)) {
+            return ResponseBuilder::error($error);
         }
 
-        $user = $this->findUserByToken($token);
+        $user = $this->userRepo->findByVerificationToken($token);
         if (!$user) {
-            return $this->error('Invalid verification token');
+            return ResponseBuilder::error('Invalid verification token');
         }
 
-        if ($this->isVerified($user)) {
-            return $this->success('Email already verified', ['already_verified' => true]);
+        if ($this->userRepo->isVerified($user)) {
+            return ResponseBuilder::success('Email already verified', ['already_verified' => true]);
         }
 
-        if ($this->isTokenExpired($user['token_expires_at'])) {
-            return $this->error('Verification token has expired. Please request a new one.');
+        if ($this->tokenService->isExpired($user['token_expires_at'])) {
+            return ResponseBuilder::error('Verification token has expired. Please request a new one.');
         }
 
-        return $this->markAsVerified($user);
+        if (!$this->userRepo->markAsVerified($user['id'])) {
+            return ResponseBuilder::error('Failed to verify email');
+        }
+
+        return ResponseBuilder::success('Email verified successfully! You can now log in.', [
+            'username' => $user['username'],
+            'email' => $user['email']
+        ]);
     }
 
     public function resendVerification(string $email): array
     {
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return $this->error('Valid email is required');
+        if ($error = $this->validator->validateEmail($email)) {
+            return ResponseBuilder::error($error);
         }
 
-        $user = $this->findUserByEmail($email);
+        $user = $this->userRepo->findByEmail($email);
         if (!$user) {
-            return $this->error('Email not found');
+            return ResponseBuilder::error('Email not found');
         }
 
-        if ($this->isVerified($user)) {
-            return $this->success('Email is already verified', ['already_verified' => true]);
+        if ($this->userRepo->isVerified($user)) {
+            return ResponseBuilder::success('Email is already verified', ['already_verified' => true]);
         }
 
-        return $this->generateAndSendVerification($user);
+        // Generate new token
+        $verificationToken = $this->tokenService->generate();
+        $tokenExpiresAt = $this->tokenService->getExpiry($this->verificationExpiry);
+
+        if (!$this->userRepo->updateVerificationToken($user['id'], $verificationToken, $tokenExpiresAt)) {
+            return ResponseBuilder::error('Failed to resend verification');
+        }
+
+        $emailSent = $this->sendVerificationEmail($user['email'], $user['username'], $verificationToken);
+
+        return [
+            'status' => 'SUCCESS',
+            'msg' => 'Verification email sent. Please check your inbox.',
+            'email_sent' => $emailSent,
+            'expires_at' => $tokenExpiresAt
+        ];
     }
 
     public function requestPasswordReset(string $email): array
     {
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return $this->error('Valid email is required');
+        if ($error = $this->validator->validateEmail($email)) {
+            return ResponseBuilder::error($error);
         }
 
-        $user = $this->findUserByEmail($email);
+        $user = $this->userRepo->findByEmail($email);
         if (!$user) {
-            return $this->error('Email not found');
+            return ResponseBuilder::error('Email not found');
         }
 
-        return $this->generateAndSendPasswordReset($user);
+        // Generate reset token (1 hour expiry)
+        $resetToken = $this->tokenService->generate();
+        $tokenExpiresAt = $this->tokenService->getExpiry(3600);
+
+        if (!$this->userRepo->updateResetToken($user['id'], $resetToken, $tokenExpiresAt)) {
+            return ResponseBuilder::error('Failed to send password reset email');
+        }
+
+        $emailSent = $this->sendPasswordResetEmail($user['email'], $user['username'], $resetToken);
+
+        return [
+            'status' => 'SUCCESS',
+            'msg' => 'Password reset token sent to your email.',
+            'token' => $resetToken,
+            'email_sent' => $emailSent,
+            'expires_at' => $tokenExpiresAt
+        ];
     }
 
     public function resetPassword(string $token, string $newPassword): array
     {
-        if (empty($token)) {
-            return $this->error('Reset token is required');
+        if ($error = $this->validator->validateToken($token)) {
+            return ResponseBuilder::error('Reset token is required');
         }
 
-        if (strlen($newPassword) < 6) {
-            return $this->error('Password must be at least 6 characters');
+        if ($error = $this->validator->validatePassword($newPassword)) {
+            return ResponseBuilder::error($error);
         }
 
-        $user = $this->findUserByResetToken($token);
+        $user = $this->userRepo->findByResetToken($token);
         if (!$user) {
-            return $this->error('Invalid reset token');
+            return ResponseBuilder::error('Invalid reset token');
         }
 
-        if ($this->isTokenExpired($user['reset_token_expires_at'])) {
-            return $this->error('Reset token has expired. Please request a new one.');
+        if ($this->tokenService->isExpired($user['reset_token_expires_at'])) {
+            return ResponseBuilder::error('Reset token has expired. Please request a new one.');
         }
 
-        return $this->updatePassword($user, $newPassword);
+        $hashedPassword = $this->passwordService->hash($newPassword);
+
+        if (!$this->userRepo->updatePassword($user['id'], $hashedPassword)) {
+            return ResponseBuilder::error('Failed to reset password');
+        }
+
+        return ResponseBuilder::success('Password reset successfully! You can now log in with your new password.', [
+            'username' => $user['username'],
+            'email' => $user['email']
+        ]);
     }
 
-    private function validateSignupInput(string $username, string $password, string $email, string $phone): ?array
+    private function getOrCreateSession(array $user): array
     {
-        if (empty($username) || empty($password) || empty($email) || empty($phone)) {
-            return $this->error('All fields are required');
+        $existingSession = $this->userRepo->findActiveSession($user['id']);
+        if ($existingSession) {
+            return ResponseBuilder::loginResponse($user, $existingSession, 'Already logged in');
         }
 
-        if (strlen($username) < 3 || strlen($username) > 50) {
-            return $this->error('Username must be 3-50 characters');
+        $session = new Session($this->db);
+        $sessionResult = $session->create($user['id']);
+
+        if ($sessionResult['status'] !== 'SUCCESS') {
+            return ResponseBuilder::error('Failed to create session');
         }
 
-        if (!preg_match('/^[a-zA-Z0-9_]+$/', $username)) {
-            return $this->error('Username can only contain letters, numbers, and underscores');
-        }
-
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return $this->error('Invalid email format');
-        }
-
-        if (strlen($password) < 6) {
-            return $this->error('Password must be at least 6 characters');
-        }
-
-        if (!preg_match('/^[0-9]{10}$/', $phone)) {
-            return $this->error('Phone must be 10 digits');
-        }
-
-        return null;
-    }
-
-    private function checkUserExists(string $username, string $email): ?array
-    {
-        $stmt = $this->db->prepare("SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1");
-        if (!$stmt) return $this->error('Database error');
-
-        $stmt->bind_param("ss", $username, $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $existing = $result->fetch_assoc();
-        $stmt->close();
-
-        if ($existing) {
-            // Check which one exists
-            $stmt2 = $this->db->prepare("SELECT username, email FROM users WHERE id = ?");
-            $stmt2->bind_param("i", $existing['id']);
-            $stmt2->execute();
-            $user = $stmt2->get_result()->fetch_assoc();
-            $stmt2->close();
-
-            if ($user['username'] === $username) {
-                return $this->error('Username already exists');
-            }
-            return $this->error('Email already registered');
-        }
-
-        return null;
-    }
-
-    private function createUser(string $username, string $password, string $email, string $phone): array
-    {
-        $hashedPassword = password_hash($password, PASSWORD_BCRYPT, ['cost' => $this->bcryptCost]);
-        $verificationToken = $this->generateToken();
-        $tokenExpiresAt = $this->getExpiryTime($this->verificationExpiry);
-
-        $stmt = $this->db->prepare(
-            "INSERT INTO users (username, password, email, phone, blocked, verified, verification_token, token_expires_at, created_at, updated_at) 
-             VALUES (?, ?, ?, ?, 0, 0, ?, ?, NOW(), NOW())"
-        );
-
-        if (!$stmt) return $this->error('Database error');
-
-        $stmt->bind_param("ssssss", $username, $hashedPassword, $email, $phone, $verificationToken, $tokenExpiresAt);
-
-        if (!$stmt->execute()) {
-            return $this->error($this->db->error);
-        }
-
-        $userId = $stmt->insert_id;
-        $stmt->close();
-
-        $emailSent = $this->sendVerificationEmail($email, $username, $verificationToken);
-
-        return [
-            'status' => 'SUCCESS',
-            'msg' => 'User registered successfully. Please check your email to verify your account.',
-            'user_id' => $userId,
-            'username' => $username,
-            'email_sent' => $emailSent,
-            'verification_expires_at' => $tokenExpiresAt
-        ];
-    }
-
-    private function findUserByUsernameOrEmail(string $identifier): ?array
-    {
-        $stmt = $this->db->prepare(
-            "SELECT id, username, email, password, phone, blocked, verified, created_at 
-             FROM users WHERE (username = ? OR email = ?) AND blocked = 0 LIMIT 1"
-        );
-
-        if (!$stmt) return null;
-
-        $stmt->bind_param("ss", $identifier, $identifier);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-        $stmt->close();
-
-        return $user ?: null;
-    }
-
-    private function findUserByEmail(string $email): ?array
-    {
-        $stmt = $this->db->prepare("SELECT id, username, email, verified FROM users WHERE email = ? LIMIT 1");
-        if (!$stmt) return null;
-
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-        $stmt->close();
-
-        return $user ?: null;
-    }
-
-    private function findUserByToken(string $token): ?array
-    {
-        $stmt = $this->db->prepare(
-            "SELECT id, username, email, verified, token_expires_at FROM users WHERE verification_token = ? LIMIT 1"
-        );
-
-        if (!$stmt) return null;
-
-        $stmt->bind_param("s", $token);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-        $stmt->close();
-
-        return $user ?: null;
-    }
-
-    private function isVerified(array $user): bool
-    {
-        return (int)$user['verified'] === 1;
-    }
-
-    private function isTokenExpired(?string $expiresAt): bool
-    {
-        if (!$expiresAt) return true;
-        return strtotime($expiresAt) < time();
-    }
-
-    private function markAsVerified(array $user): array
-    {
-        $stmt = $this->db->prepare(
-            "UPDATE users SET verified = 1, verification_token = NULL, token_expires_at = NULL WHERE id = ?"
-        );
-
-        if (!$stmt) return $this->error('Database error');
-
-        $stmt->bind_param("i", $user['id']);
-
-        if ($stmt->execute()) {
-            $stmt->close();
-            return $this->success('Email verified successfully! You can now log in.', [
-                'username' => $user['username'],
-                'email' => $user['email']
-            ]);
-        }
-
-        return $this->error('Failed to verify email');
-    }
-
-    private function generateAndSendVerification(array $user): array
-    {
-        $verificationToken = $this->generateToken();
-        $tokenExpiresAt = $this->getExpiryTime($this->verificationExpiry);
-
-        $stmt = $this->db->prepare(
-            "UPDATE users SET verification_token = ?, token_expires_at = ? WHERE id = ?"
-        );
-
-        if (!$stmt) return $this->error('Database error');
-
-        $stmt->bind_param("ssi", $verificationToken, $tokenExpiresAt, $user['id']);
-
-        if ($stmt->execute()) {
-            $stmt->close();
-            $emailSent = $this->sendVerificationEmail($user['email'], $user['username'], $verificationToken);
-
-            return [
-                'status' => 'SUCCESS',
-                'msg' => 'Verification email sent. Please check your inbox.',
-                'email_sent' => $emailSent,
-                'expires_at' => $tokenExpiresAt
-            ];
-        }
-
-        return $this->error('Failed to resend verification');
+        return ResponseBuilder::loginResponse($user, $sessionResult, 'Login successful');
     }
 
     private function sendVerificationEmail(string $email, string $username, string $token): bool
@@ -338,167 +238,10 @@ class Auth
         return $result['status'] === 'SUCCESS';
     }
 
-    private function getOrCreateSession(array $user): array
-    {
-        $existingSession = $this->findActiveSession($user['id']);
-        if ($existingSession) {
-            return $this->buildLoginResponse($user, $existingSession, 'Already logged in');
-        }
-
-        $session = new Session($this->db);
-        $sessionResult = $session->create($user['id']);
-
-        if ($sessionResult['status'] !== 'SUCCESS') {
-            return $this->error('Failed to create session');
-        }
-
-        return $this->buildLoginResponse($user, $sessionResult, 'Login successful');
-    }
-
-    private function findActiveSession(int $userId): ?array
-    {
-        $stmt = $this->db->prepare(
-            "SELECT access_token, refresh_token, expires_at FROM sessions WHERE user_id = ? AND expires_at > NOW() LIMIT 1"
-        );
-
-        if (!$stmt) return null;
-
-        $stmt->bind_param("i", $userId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $session = $result->fetch_assoc();
-        $stmt->close();
-
-        return $session ?: null;
-    }
-
-    private function buildLoginResponse(array $user, array $session, string $message): array
-    {
-        return [
-            'status' => 'SUCCESS',
-            'msg' => $message,
-            'user' => [
-                'id' => $user['id'],
-                'username' => $user['username'],
-                'email' => $user['email'],
-                'phone' => $user['phone'],
-                'created_at' => $user['created_at']
-            ],
-            'access_token' => $session['access_token'],
-            'refresh_token' => $session['refresh_token'],
-            'expires_at' => $session['expires_at']
-        ];
-    }
-
-    private function rehashPasswordIfNeeded(int $userId, string $password, string $currentHash): void
-    {
-        if (!password_needs_rehash($currentHash, PASSWORD_BCRYPT, ['cost' => $this->bcryptCost])) {
-            return;
-        }
-
-        $newHash = password_hash($password, PASSWORD_BCRYPT, ['cost' => $this->bcryptCost]);
-        $stmt = $this->db->prepare("UPDATE users SET password = ? WHERE id = ?");
-
-        if ($stmt) {
-            $stmt->bind_param("si", $newHash, $userId);
-            $stmt->execute();
-            $stmt->close();
-        }
-    }
-
-    private function generateToken(): string
-    {
-        return bin2hex(random_bytes(32));
-    }
-
-    private function getExpiryTime(int $seconds): string
-    {
-        return date('Y-m-d H:i:s', time() + $seconds);
-    }
-
-    private function error(string $message): array
-    {
-        return ['status' => 'FAILED', 'error' => $message];
-    }
-
-    private function success(string $message, array $extra = []): array
-    {
-        return array_merge(['status' => 'SUCCESS', 'msg' => $message], $extra);
-    }
-
-    private function findUserByResetToken(string $token): ?array
-    {
-        $stmt = $this->db->prepare(
-            "SELECT id, username, email, password, reset_token_expires_at FROM users WHERE reset_token = ? LIMIT 1"
-        );
-
-        if (!$stmt) return null;
-
-        $stmt->bind_param("s", $token);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-        $stmt->close();
-
-        return $user ?: null;
-    }
-
-    private function generateAndSendPasswordReset(array $user): array
-    {
-        $resetToken = $this->generateToken();
-        $tokenExpiresAt = $this->getExpiryTime(3600);
-
-        $stmt = $this->db->prepare(
-            "UPDATE users SET reset_token = ?, reset_token_expires_at = ? WHERE id = ?"
-        );
-
-        if (!$stmt) return $this->error('Database error');
-
-        $stmt->bind_param("ssi", $resetToken, $tokenExpiresAt, $user['id']);
-
-        if ($stmt->execute()) {
-            $stmt->close();
-            $emailSent = $this->sendPasswordResetEmail($user['email'], $user['username'], $resetToken);
-
-            return [
-                'status' => 'SUCCESS',
-                'msg' => 'Password reset token sent to your email. Use this token with the API to reset your password.',
-                'token' => $resetToken,
-                'email_sent' => $emailSent,
-                'expires_at' => $tokenExpiresAt
-            ];
-        }
-
-        return $this->error('Failed to send password reset email');
-    }
-
     private function sendPasswordResetEmail(string $email, string $username, string $token): bool
     {
         $emailService = new Email();
         $result = $emailService->sendPasswordResetEmail($email, $username, $token);
         return $result['status'] === 'SUCCESS';
-    }
-
-    private function updatePassword(array $user, string $newPassword): array
-    {
-        $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => $this->bcryptCost]);
-
-        $stmt = $this->db->prepare(
-            "UPDATE users SET password = ?, reset_token = NULL, reset_token_expires_at = NULL WHERE id = ?"
-        );
-
-        if (!$stmt) return $this->error('Database error');
-
-        $stmt->bind_param("si", $hashedPassword, $user['id']);
-
-        if ($stmt->execute()) {
-            $stmt->close();
-            return $this->success('Password reset successfully! You can now log in with your new password.', [
-                'username' => $user['username'],
-                'email' => $user['email']
-            ]);
-        }
-
-        return $this->error('Failed to reset password');
     }
 }
