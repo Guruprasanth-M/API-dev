@@ -1,6 +1,18 @@
 <?php
 error_reporting(E_ALL ^ E_DEPRECATED);
 
+// --- CORS: Allow React / frontend apps to call this API ---
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
+header("Access-Control-Allow-Headers: Authorization, Content-Type, Accept");
+header("Access-Control-Max-Age: 3600");
+
+// Handle preflight OPTIONS request — respond immediately, skip all logic
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
 require_once __DIR__ . '/../src/load.php';
 
 class API extends REST
@@ -17,6 +29,10 @@ class API extends REST
         }
         
         Migration::run($this->db);
+        // Notes module is optional — only run its migrations if the module is present
+        if (is_dir(BASE_PATH . '/notes/Database/migrations')) {
+            Migration::run($this->db, BASE_PATH . '/notes/Database/migrations');
+        }
     }
 
     private function dbConnect(): void

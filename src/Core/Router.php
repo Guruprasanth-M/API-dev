@@ -39,12 +39,20 @@ class Router
 
     private function resolveController(string $endpoint): ?string
     {
-        $controllersDir = SRC_PATH . '/Controllers';
-        foreach (glob($controllersDir . '/*Controller.php') as $file) {
-            $className = basename($file, '.php');
-            $name = strtolower(str_replace('Controller', '', $className));
-            if ($name === $endpoint) {
-                return $className;
+        // Notes module is optional — only scan its controllers if the module is present
+        $controllerDirs = [SRC_PATH . '/Controllers'];
+        if (defined('NOTES_PATH') && is_dir(NOTES_PATH . '/Controllers')) {
+            $controllerDirs[] = NOTES_PATH . '/Controllers';
+        }
+
+        foreach ($controllerDirs as $dir) {
+            if (!is_dir($dir)) continue;
+            foreach (glob($dir . '/*Controller.php') as $file) {
+                $className = basename($file, '.php');
+                $name = strtolower(str_replace('Controller', '', $className));
+                if ($name === $endpoint) {
+                    return $className;
+                }
             }
         }
         return null;

@@ -36,3 +36,8 @@ foreach (glob(SRC_PATH . '/Store/*.php') as $store_file) {
 foreach (glob(SRC_PATH . '/Controllers/*.php') as $controller) {
     require_once $controller;
 }
+
+// Notes module is optional — only load if the module is present
+if (file_exists(BASE_PATH . '/notes/load.php')) {
+    require_once BASE_PATH . '/notes/load.php';
+}
