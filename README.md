@@ -7,48 +7,6 @@ Designed for real deployment, security, and learning by building real systems.
 
 ---
 
-## 📸 Overview
-
-<img width="1920" height="1080" alt="API Overview" src="https://github.com/user-attachments/assets/1fe70ea7-421e-414c-9fe5-f7061a2fce39" />
-<img width="1919" height="1034" alt="Database Schema" src="https://github.com/user-attachments/assets/d801ef2e-7c96-49d8-b71b-221b36762bec" />
-<img width="1915" height="1011" alt="Production Deployment" src="https://github.com/user-attachments/assets/3af9eff1-b416-4611-a915-df6838f4c140" />
-
----
-
-## ✨ Features
-
-### 🔐 Authentication
-- User signup & login
-- Email verification before access
-- Secure password hashing (bcrypt)
-- Account blocking support
-
-### 🔑 Token System
-- Access tokens (configurable expiry)
-- Refresh tokens for session renewal
-- Token rotation & revocation
-- Server-side session management
-
-### 📧 Email
-- Gmail SMTP integration
-- Verification emails
-- Password reset flow
-- Expiring email tokens
-
-### 🛡️ Security
-- Prepared statements (SQL injection protection)
-- HTTPS/TLS ready
-- No sensitive data in logs
-- Clean, predictable JSON responses
-
-### ☁️ Deployment Ready
-- Apache2 with URL rewriting
-- Custom domain + SSL
-- Persistent MySQL connections
-- Auto-running database migrations
-
----
-
 ## ⚙️ Requirements
 
 - PHP 8.3+
