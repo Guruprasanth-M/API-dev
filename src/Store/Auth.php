@@ -208,6 +208,10 @@ class Auth
             return ResponseBuilder::error('Failed to reset password');
         }
 
+        // Invalidate all existing sessions for security (password changed)
+        $session = new Session($this->db);
+        $session->invalidateAllByUserId($user['id']);
+
         return ResponseBuilder::success('Password reset successfully! You can now log in with your new password.', [
             'username' => $user['username'],
             'email' => $user['email']

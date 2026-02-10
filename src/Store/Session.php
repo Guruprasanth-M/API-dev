@@ -5,39 +5,63 @@ class Session
 {
     private mysqli $db;
 
+    // Token prefixes for type identification (adopted from OAuth pattern)
+    private const ACCESS_PREFIX  = 'a.';
+    private const REFRESH_PREFIX = 'r.';
+
     public function __construct(mysqli $db)
     {
         $this->db = $db;
     }
 
-    private function generateToken(): string
+    private function generateToken(string $prefix): string
     {
-        return bin2hex(random_bytes(32));
+        return $prefix . bin2hex(random_bytes(32));
     }
 
-    public function create(int $user_id): array
+    /**
+     * Detect token type from prefix
+     */
+    public static function getTokenType(string $token): string
     {
-        $access_token = $this->generateToken();
-        $refresh_token = $this->generateToken();
+        if (str_starts_with($token, self::ACCESS_PREFIX)) return 'access';
+        if (str_starts_with($token, self::REFRESH_PREFIX)) return 'refresh';
+        return 'unknown';
+    }
+
+    /**
+     * Strip prefix from token for display/logging (never log full token)
+     */
+    public static function maskToken(string $token): string
+    {
+        return substr($token, 0, 6) . '...' . substr($token, -4);
+    }
+
+    public function create(int $user_id, string $reference_token = 'auth_grant'): array
+    {
+        $access_token  = $this->generateToken(self::ACCESS_PREFIX);
+        $refresh_token = $this->generateToken(self::REFRESH_PREFIX);
         $expires_at = date('Y-m-d H:i:s', time() + (int)$_ENV['SESSION_TOKEN_EXPIRE']);
 
-        $query = "INSERT INTO sessions (user_id, access_token, refresh_token, expires_at, created_at)
-                  VALUES (?, ?, ?, ?, NOW())";
-        
+        $query = "INSERT INTO sessions (user_id, access_token, refresh_token, expires_at, valid, reference_token, created_at)
+                  VALUES (?, ?, ?, ?, 1, ?, NOW())";
+
         $stmt = $this->db->prepare($query);
         if (!$stmt) {
             return ['status' => 'FAILED', 'error' => 'Database error'];
         }
 
-        $stmt->bind_param("isss", $user_id, $access_token, $refresh_token, $expires_at);
-        
+        $stmt->bind_param("issss", $user_id, $access_token, $refresh_token, $expires_at, $reference_token);
+
         if ($stmt->execute()) {
             $stmt->close();
             return [
                 'status' => 'SUCCESS',
-                'access_token' => $access_token,
-                'refresh_token' => $refresh_token,
-                'expires_at' => $expires_at
+                'access_token'    => $access_token,
+                'refresh_token'   => $refresh_token,
+                'token_type'      => 'Bearer',
+                'expires_at'      => $expires_at,
+                'reference_token' => $reference_token
             ];
         } else {
             return ['status' => 'FAILED', 'error' => $this->db->error];
@@ -46,9 +70,13 @@ class Session
 
     public function validate(string $access_token): array
     {
+        if (self::getTokenType($access_token) !== 'access') {
+            return ['status' => 'FAILED', 'error' => 'Invalid token type. Expected access token (a.*)'];
+        }
+
         $query = "SELECT id, user_id, expires_at FROM sessions 
-                  WHERE access_token = ? AND expires_at > NOW() LIMIT 1";
-        
+                  WHERE access_token = ? AND valid = 1 AND expires_at > NOW() LIMIT 1";
+
         $stmt = $this->db->prepare($query);
         if (!$stmt) {
             return ['status' => 'FAILED', 'error' => 'Database error'];
@@ -65,18 +93,22 @@ class Session
 
         $session = $result->fetch_assoc();
         return [
-            'status' => 'SUCCESS',
+            'status'     => 'SUCCESS',
             'session_id' => $session['id'],
-            'user_id' => $session['user_id'],
+            'user_id'    => $session['user_id'],
             'expires_at' => $session['expires_at']
         ];
     }
 
     public function refresh(string $refresh_token): array
     {
-        $query = "SELECT id, user_id FROM sessions 
-                  WHERE refresh_token = ? AND expires_at > NOW() LIMIT 1";
-        
+        if (self::getTokenType($refresh_token) !== 'refresh') {
+            return ['status' => 'FAILED', 'error' => 'Invalid token type. Expected refresh token (r.*)'];
+        }
+
+        $query = "SELECT id, user_id, refresh_token FROM sessions 
+                  WHERE refresh_token = ? AND valid = 1 LIMIT 1";
+
         $stmt = $this->db->prepare($query);
         if (!$stmt) {
             return ['status' => 'FAILED', 'error' => 'Database error'];
@@ -92,54 +124,77 @@ class Session
         }
 
         $session = $result->fetch_assoc();
-        $new_access_token = $this->generateToken();
-        $expires_at = date('Y-m-d H:i:s', time() + (int)$_ENV['SESSION_TOKEN_EXPIRE']);
 
-        $update_query = "UPDATE sessions SET access_token = ?, expires_at = ? WHERE id = ?";
-        $update_stmt = $this->db->prepare($update_query);
-        if (!$update_stmt) {
-            return ['status' => 'FAILED', 'error' => 'Database error'];
-        }
+        // Invalidate the old session (token rotation)
+        $this->invalidate($session['id']);
 
-        $update_stmt->bind_param("ssi", $new_access_token, $expires_at, $session['id']);
-        
-        if ($update_stmt->execute()) {
-            $update_stmt->close();
-            return [
-                'status' => 'SUCCESS',
-                'access_token' => $new_access_token,
-                'expires_at' => $expires_at
-            ];
-        } else {
-            return ['status' => 'FAILED', 'error' => $this->db->error];
-        }
+        // Create new session with reference to the refresh token that spawned it
+        return $this->create($session['user_id'], $session['refresh_token']);
     }
 
+    /**
+     * Soft-delete: mark session as invalid instead of deleting (audit trail)
+     */
     public function delete(string $access_token): array
     {
-        $query = "DELETE FROM sessions WHERE access_token = ?";
-        
+        $query = "UPDATE sessions SET valid = 0 WHERE access_token = ? AND valid = 1";
+
         $stmt = $this->db->prepare($query);
         if (!$stmt) {
             return ['status' => 'FAILED', 'error' => 'Database error'];
         }
 
         $stmt->bind_param("s", $access_token);
-        
+
         if ($stmt->execute()) {
+            $affected = $stmt->affected_rows;
             $stmt->close();
+            if ($affected === 0) {
+                return ['status' => 'FAILED', 'error' => 'Session not found or already invalidated'];
+            }
             return ['status' => 'SUCCESS', 'msg' => 'Logged out successfully'];
         } else {
             return ['status' => 'FAILED', 'error' => $this->db->error];
         }
     }
 
+    /**
+     * Invalidate all sessions for a user (e.g., password change, security event)
+     */
+    public function invalidateAllByUserId(int $user_id): void
+    {
+        $query = "UPDATE sessions SET valid = 0 WHERE user_id = ? AND valid = 1";
+        $stmt = $this->db->prepare($query);
+        if ($stmt) {
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $stmt->close();
+        }
+    }
+
+    /**
+     * Hard delete — for old expired sessions cleanup only
+     */
     public function deleteByUserId(int $user_id): void
     {
         $query = "DELETE FROM sessions WHERE user_id = ?";
         $stmt = $this->db->prepare($query);
         if ($stmt) {
             $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $stmt->close();
+        }
+    }
+
+    /**
+     * Invalidate a single session by ID
+     */
+    private function invalidate(int $session_id): void
+    {
+        $query = "UPDATE sessions SET valid = 0 WHERE id = ?";
+        $stmt = $this->db->prepare($query);
+        if ($stmt) {
+            $stmt->bind_param("i", $session_id);
             $stmt->execute();
             $stmt->close();
         }

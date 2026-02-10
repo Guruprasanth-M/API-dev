@@ -31,6 +31,7 @@ class ResponseBuilder
             ],
             'access_token' => $session['access_token'],
             'refresh_token' => $session['refresh_token'],
+            'token_type' => 'Bearer',
             'expires_at' => $session['expires_at']
         ];
     }

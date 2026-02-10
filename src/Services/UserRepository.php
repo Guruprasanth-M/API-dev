@@ -220,8 +220,8 @@ class UserRepository
     public function findActiveSession(int $userId): ?array
     {
         $stmt = $this->db->prepare(
-            "SELECT access_token, refresh_token, expires_at 
-             FROM sessions WHERE user_id = ? AND expires_at > NOW() LIMIT 1"
+            "SELECT access_token, refresh_token, expires_at, reference_token 
+             FROM sessions WHERE user_id = ? AND valid = 1 AND expires_at > NOW() LIMIT 1"
         );
 
         if (!$stmt) return null;

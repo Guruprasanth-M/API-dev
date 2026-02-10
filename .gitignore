@@ -1,4 +1,5 @@
 .env
 src/Database/.migrated
 wiki/
+new/
 htdocs/web.php
