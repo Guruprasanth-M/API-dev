@@ -1,10 +1,10 @@
-# 🚀 Self-Hosted PHP REST API – Authentication & User Management
+# 🚀 Self-Hosted PHP REST API – Authentication & Notes
 
-A production-ready REST API built in PHP for complete user authentication and account lifecycle management.
+A production-ready REST API built in PHP for complete user authentication, account lifecycle management, and notes/folders CRUD.
 Designed for real deployment, security, and learning by building real systems.
 
-> **📖 Live Demo:** React Notes App built with this API → [**View on GitHub →**](https://github.com/Guruprasanth-M/Note_APP)
-
+> **Version:** `1.0.0`  
+> **📱 Mobile App:** React Notes App built with this API → [**View on GitHub →**](https://github.com/Guruprasanth-M/Note_APP)  
 > **📖 Full Documentation:** [**Read the Wiki →**](https://github.com/Guruprasanth-M/API-dev/wiki)
 
 ---
@@ -67,6 +67,25 @@ cp .env.sample .env
 | `POST` | `/userexists` | Check if user exists | Optional | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/UserExists) |
 | `POST` | `/isloggedin` | Check auth status | Yes | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/IsLoggedIn) |
 | `POST` | `/about` | Get user profile + API info | Yes | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/About) |
+
+### Folders
+
+| Method | Endpoint | Description | Auth | Wiki |
+|--------|----------|-------------|:----:|------|
+| `POST` | `/foldercreate` | Create a new folder | Yes | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/FolderCreate) |
+| `POST` | `/folderlist` | List all user folders | Yes | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/FolderList) |
+| `POST` | `/folderrename` | Rename a folder | Yes | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/FolderRename) |
+| `POST` | `/folderdelete` | Delete folder and all notes | Yes | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/FolderDelete) |
+| `POST` | `/foldernotes` | Get all notes in folder | Yes | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/FolderNotes) |
+
+### Notes
+
+| Method | Endpoint | Description | Auth | Wiki |
+|--------|----------|-------------|:----:|------|
+| `POST` | `/notecreate` | Create a new note | Yes | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/NoteCreate) |
+| `POST` | `/noteget` | Get a single note | Yes | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/NoteGet) |
+| `POST` | `/noteedit` | Edit note title/body | Yes | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/NoteEdit) |
+| `POST` | `/notedelete` | Delete a note | Yes | [Docs](https://github.com/Guruprasanth-M/API-dev/wiki/NoteDelete) |
 
 ---
 
@@ -145,6 +164,10 @@ api/
 │   ├── Store/             # Business logic (Auth, Session, User, Email)
 │   ├── Services/          # Utilities (Validation, Password, Token, Response)
 │   └── Database/          # Connection, Migrations
+├── notes/
+│   ├── Controllers/       # Folder & Note controllers
+│   ├── Store/             # Folder & Note business logic
+│   └── Database/          # Notes migrations
 ├── .env                   # Configuration
 └── composer.json
 ```
@@ -153,6 +176,46 @@ api/
 
 ---
 
+## 🗺️ Roadmap
+
+### v2 — Enhanced Features (Coming Soon)
+- [ ] **Profile Management** — Update username, email, profile picture
+- [ ] **Voice Notes API** — Upload and stream audio files
+- [ ] **Note Sharing** — Share notes between users
+- [ ] **AI Integration** — Text summarization, smart search
+- [ ] **Rich Text Support** — Markdown/HTML content
+- [ ] **File Attachments** — Image and document uploads
+- [ ] **Tags & Categories** — Better organization
+- [ ] **Search API** — Full-text search across notes
+- [ ] **Rate Limiting** — API abuse protection
+- [ ] **Backend Migration** — Node.js/Python (FastAPI) rewrite
+
+### v3 — Community Platform (Future)
+- [ ] **Public Notes** — Shareable public links
+- [ ] **User Profiles** — Public profiles and following
+- [ ] **Collaborative Editing** — Real-time multi-user editing
+- [ ] **Comments & Reactions** — Social features
+- [ ] **Note Templates** — Reusable templates
+- [ ] **Analytics Dashboard** — Usage statistics
+- [ ] **Admin Panel** — User management
+
+---
+
+## 🔗 Related Projects
+
+| Project | Description | Link |
+|---------|-------------|------|
+| **Notes App** | React Native mobile app using this API | [GitHub](https://github.com/Guruprasanth-M/Note_APP) |
+
+---
+
 ## 👨‍💻 Author
 
 **Guruprasanth M**  
+Building real systems, learning by doing.
+
+---
+
+## 📄 License
+
+MIT License — feel free to use, modify, and distribute.
