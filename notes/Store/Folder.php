@@ -209,6 +209,19 @@ class Folder
         $notes = [];
         while ($row = $result->fetch_assoc()) {
             $row['id'] = (int)$row['id'];
+            
+            // Format timestamps with timezone using Carbon
+            if ($row['created_at']) {
+                $row['created_at'] = Carbon::parse($row['created_at'])
+                    ->setTimezone($_ENV['APP_TIMEZONE'] ?? 'Asia/Kolkata')
+                    ->format('Y-m-d H:i:s');
+            }
+            if ($row['updated_at']) {
+                $row['updated_at'] = Carbon::parse($row['updated_at'])
+                    ->setTimezone($_ENV['APP_TIMEZONE'] ?? 'Asia/Kolkata')
+                    ->format('Y-m-d H:i:s');
+            }
+            
             $notes[] = $row;
         }
 
