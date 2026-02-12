@@ -125,11 +125,30 @@ class Session
 
         $session = $result->fetch_assoc();
 
-        // Invalidate the old session (token rotation)
-        $this->invalidate($session['id']);
+        // Generate ONLY a new access token — do NOT issue a new refresh token
+        $new_access_token = $this->generateToken(self::ACCESS_PREFIX);
+        $new_expires_at   = date('Y-m-d H:i:s', time() + (int)$_ENV['SESSION_TOKEN_EXPIRE']);
 
-        // Create new session with reference to the refresh token that spawned it
-        return $this->create($session['user_id'], $session['refresh_token']);
+        // Update the existing session in-place with the new access token
+        $update = "UPDATE sessions SET access_token = ?, expires_at = ? WHERE id = ? AND valid = 1";
+        $stmt2 = $this->db->prepare($update);
+        if (!$stmt2) {
+            return ['status' => 'FAILED', 'error' => 'Database error'];
+        }
+
+        $stmt2->bind_param("ssi", $new_access_token, $new_expires_at, $session['id']);
+        if (!$stmt2->execute() || $stmt2->affected_rows === 0) {
+            $stmt2->close();
+            return ['status' => 'FAILED', 'error' => 'Failed to refresh session'];
+        }
+        $stmt2->close();
+
+        return [
+            'status'       => 'SUCCESS',
+            'access_token' => $new_access_token,
+            'token_type'   => 'Bearer',
+            'expires_at'   => $new_expires_at
+        ];
     }
 
     /**
