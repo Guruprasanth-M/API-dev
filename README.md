@@ -3,6 +3,8 @@
 A production-ready REST API built in PHP for complete user authentication and account lifecycle management.
 Designed for real deployment, security, and learning by building real systems.
 
+> **📖 Live Demo:** React Notes App built with this API → [**View on GitHub →**](https://github.com/Guruprasanth-M/Note_APP)
+
 > **📖 Full Documentation:** [**Read the Wiki →**](https://github.com/Guruprasanth-M/API-dev/wiki)
 
 ---
