@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+use Carbon\Carbon;
+
 class Folder
 {
     private mysqli $db;
@@ -53,12 +55,18 @@ class Folder
 
     public function getCreatedAt(): ?string
     {
-        return $this->data['created_at'] ?? null;
+        if (!$this->data['created_at']) return null;
+        return Carbon::parse($this->data['created_at'])
+            ->setTimezone($_ENV['APP_TIMEZONE'] ?? 'Asia/Kolkata')
+            ->format('Y-m-d H:i:s');
     }
 
     public function getUpdatedAt(): ?string
     {
-        return $this->data['updated_at'] ?? null;
+        if (!$this->data['updated_at']) return null;
+        return Carbon::parse($this->data['updated_at'])
+            ->setTimezone($_ENV['APP_TIMEZONE'] ?? 'Asia/Kolkata')
+            ->format('Y-m-d H:i:s');
     }
 
     /**
